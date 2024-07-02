@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const useCtrl = require("../controllers/user");
-const auth = require("../middleware/auth");
+const { limiter } = require("../middleware/rate-limit");
 
-router.post("/signup", useCtrl.signup);
-router.post("/login", useCtrl.login);
+router.post("/signup", limiter, useCtrl.signup);
+router.post("/login", limiter, useCtrl.login);
 module.exports = router;

@@ -1,8 +1,24 @@
-const User = require("../models/user");
-const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const User = require("../models/user"); // Assurez-vous d'importer votre modèle User
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
 exports.signup = (req, res, next) => {
+    // Valider l'email
+    if (!emailRegex.test(req.body.email)) {
+        return res.status(400).json({ message: "Email invalide" });
+    }
+
+    // Valider le mot de passe
+    if (!passwordRegex.test(req.body.password)) {
+        return res.status(400).json({
+            message:
+                "Le mot de passe doit contenir au moins 8 caractères, une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial",
+        });
+    }
+
     bcrypt
         .hash(req.body.password, 10)
         .then((hash) => {

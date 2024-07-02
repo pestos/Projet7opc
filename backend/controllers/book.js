@@ -1,5 +1,6 @@
 const Book = require("../models/books");
 const fs = require("fs");
+const path = require("path");
 
 exports.booksGet = (req, res, next) => {
     Book.find()
@@ -8,7 +9,6 @@ exports.booksGet = (req, res, next) => {
 };
 
 exports.bookPost = (req, res, next) => {
-    console.log(req.body);
     const parsedData = JSON.parse(req.body.book);
     const imageUrl = req.file
         ? `${req.protocol}://${req.get("host")}/images/${req.file.filename}`
@@ -33,17 +33,17 @@ exports.bookIdDelete = async (req, res, next) => {
     Book.findOne({ _id: req.params.id })
         .then((thing) => {
             if (thing.userId != req.auth.userId) {
-                res.status(401).json({ message: "Not authorized" });
+                res.status(403).json({ message: "Forbidden" });
             } else {
                 const filename = thing.imageUrl.split("/images/")[1];
                 fs.unlink(`images/${filename}`, () => {
                     Book.deleteOne({ _id: req.params.id })
                         .then(() => {
-                            res.status(200).json({
+                            res.status(204).json({
                                 message: "Objet supprimé !",
                             });
                         })
-                        .catch((error) => res.status(401).json({ error }));
+                        .catch((error) => res.status(400).json({ error }));
                 });
             }
         })
@@ -63,28 +63,46 @@ exports.bookModifyId = (req, res, next) => {
         : { ...req.body };
 
     delete bookObject._userId;
+
     Book.findOne({ _id: req.params.id })
-        .then((thing) => {
-            if (thing.userId != req.auth.userId) {
-                res.status(401).json({ message: "Not authorized" });
-            } else {
-                Book.updateOne(
-                    { _id: req.params.id },
-                    { ...bookObject, _id: req.params.id }
-                )
-                    .then(() =>
-                        res.status(200).json({ message: "Objet modifié!" })
-                    )
-                    .catch((error) => res.status(401).json({ error }));
+        .then((book) => {
+            if (!book) {
+                return res.status(404).json({ message: "Livre non trouvé" });
             }
+            if (book.userId != req.auth.userId) {
+                return res.status(403).json({ message: "Forbidden" });
+            }
+
+            const oldImageUrl = book.imageUrl;
+            if (req.file && oldImageUrl) {
+                const oldImageFilename = path.basename(oldImageUrl);
+                const oldImagePath = path.join(
+                    __dirname,
+                    "..",
+                    "images",
+                    oldImageFilename
+                );
+
+                fs.unlink(oldImagePath, (err) => {
+                    if (err) {
+                        console.error(
+                            `Erreur lors de la suppression de l'ancienne image : ${err}`
+                        );
+                    }
+                });
+            }
+
+            Book.updateOne(
+                { _id: req.params.id },
+                { ...bookObject, _id: req.params.id }
+            )
+                .then(() => res.status(200).json({ message: "Objet modifié!" }))
+                .catch((error) => res.status(400).json({ error }));
         })
         .catch((error) => {
             res.status(400).json({ error });
         });
 };
-
-
-
 
 exports.bookRatingPost = (req, res, next) => {
     const bookId = req.params.id;
@@ -112,8 +130,14 @@ exports.bookRatingPost = (req, res, next) => {
 
             // Calculer la nouvelle moyenne des notes
             const sum = book.ratings.reduce((acc, curr) => acc + curr.grade, 0);
-            const averageRating =
+            let averageRating =
                 book.ratings.length > 0 ? sum / book.ratings.length : 0;
+
+            // Appliquer floor ou ceil en fonction de la moyenne
+            averageRating =
+                averageRating < 5
+                    ? Math.floor(averageRating)
+                    : Math.ceil(averageRating);
 
             book.averageRating = averageRating;
 

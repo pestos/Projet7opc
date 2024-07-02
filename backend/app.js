@@ -3,6 +3,7 @@ const app = express();
 const mongoose = require("mongoose");
 const userRoutes = require("./routes/user");
 const bookRoutes = require("./routes/book");
+const mongoSanitize = require("mongo-sanitize");
 app.use(express.json()); // Remplace app.use(bodyParser.json());
 const path = require("path");
 const cors = require("cors");
@@ -14,6 +15,13 @@ app.use(
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
+
+app.use((req, res, next) => {
+    req.body = mongoSanitize(req.body);
+    req.query = mongoSanitize(req.query);
+    req.params = mongoSanitize(req.params);
+    next();
+});
 
 mongoose
     .connect("mongodb+srv://Gfrederic:lolipop@cluster0.q9dbvmd.mongodb.net/", {
